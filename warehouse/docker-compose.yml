@@ -24,7 +24,7 @@ services:
     container_name: olist-pgadmin
     restart: unless-stopped
     environment:
-      PGADMIN_DEFAULT_EMAIL: admin@olist.local
+      PGADMIN_DEFAULT_EMAIL: admin@example.com
       PGADMIN_DEFAULT_PASSWORD: change_me_pgadmin
       PGADMIN_CONFIG_ENHANCED_COOKIE_PROTECTION: "True"
       PGADMIN_CONFIG_LOGIN_BANNER: "\"Authorized access only\""
@@ -34,7 +34,7 @@ services:
       postgres:
         condition: service_healthy
     volumes:
-      - /mnt/data/volumes/pgadmin:/var/lib/pgadmin
+      - pgadmin-data:/var/lib/pgadmin
     networks:
       - olist-net
 
@@ -42,3 +42,6 @@ networks:
   olist-net:
     external: true
     name: olist-net
+
+volumes:
+  pgadmin-data:
