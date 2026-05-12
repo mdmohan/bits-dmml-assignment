@@ -21,6 +21,9 @@ services:
       ZOOKEEPER_TICK_TIME: 2000
     ports:
       - "2181:2181"
+    volumes:
+      - zookeeper-data:/var/lib/zookeeper/data
+      - zookeeper-log:/var/lib/zookeeper/log
     networks:
       - olist-net
     healthcheck:
@@ -55,6 +58,8 @@ services:
       KAFKA_LOG_RETENTION_HOURS: 168   # 7 days per contract
       KAFKA_LOG_SEGMENT_BYTES: 1073741824
       KAFKA_LOG_RETENTION_CHECK_INTERVAL_MS: 300000
+    volumes:
+      - kafka-data:/var/lib/kafka/data
     networks:
       - olist-net
     healthcheck:
@@ -162,5 +167,27 @@ networks:
 
 # ── Volumes ─────────────────────────────────────────────────────────────────
 volumes:
+  zookeeper-data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: /mnt/data/volumes/zookeeper-data
+  zookeeper-log:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: /mnt/data/volumes/zookeeper-log
+  kafka-data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: /mnt/data/volumes/kafka-data
   minio-data:
     driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: /mnt/data/volumes/minio-data
