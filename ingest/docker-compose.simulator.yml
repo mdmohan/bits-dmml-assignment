@@ -40,4 +40,4 @@ services:
 
 networks:
   olist-net:
-    external: true   # created by docker-compose.yml
+    driver: bridge
