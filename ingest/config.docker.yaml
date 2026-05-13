@@ -1,0 +1,15 @@
+kafka:
+  # Inside Docker the broker is reachable via the internal listener name.
+  # (Use localhost:9094 only when running the producer directly on the host.)
+  bootstrap_servers: "kafka:9092"
+
+simulator:
+  # Relative to WORKDIR=/app/producer inside the container → resolves to /app/data
+  data_dir: "../data"
+
+  base_rate_per_sec: 2.0
+  burst_prob: 0.05
+  burst_size: 15
+  slow_prob: 0.03
+  loop: true
+  log_every_n: 200

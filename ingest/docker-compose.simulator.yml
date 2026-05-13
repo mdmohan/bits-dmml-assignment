@@ -1,0 +1,43 @@
+version: "3.8"
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Olist Simulator – separate compose file, leaves the ingest stack untouched.
+#
+# Usage
+# ─────
+# Dry-run (prints events to console, Kafka NOT required):
+#   docker compose -f docker-compose.simulator.yml up simulator-dry-run
+#
+# Live run (publishes to Kafka – start the ingest stack first):
+#   docker compose up -d                                    # Kafka + MinIO
+#   docker compose -f docker-compose.simulator.yml up simulator
+#
+# Both services share the olist-net network created by docker-compose.yml.
+# ─────────────────────────────────────────────────────────────────────────────
+
+services:
+
+  # ── Dry-run: stream events to stdout, no Kafka dependency ─────────────────
+  simulator-dry-run:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: olist-simulator-dry-run
+    command: ["--config", "/app/config.docker.yaml", "--dry-run"]
+    networks:
+      - olist-net
+
+  # ── Live run: publish events to Kafka ─────────────────────────────────────
+  simulator:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: olist-simulator
+    restart: on-failure
+    command: ["--config", "/app/config.docker.yaml"]
+    networks:
+      - olist-net
+
+networks:
+  olist-net:
+    external: true   # created by docker-compose.yml
