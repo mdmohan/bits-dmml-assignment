@@ -1,0 +1,12 @@
+minio:
+  bucket: datalake
+  base_prefix: raw
+  date_glob: "dt=*"
+  hour_glob: "hour=*"
+
+topics:
+  order_events: olist.order_events
+  payment_events: olist.payment_events
+  delivery_events: olist.delivery_events
+  review_events: olist.review_events
+  inventory_events: olist.inventory_events
