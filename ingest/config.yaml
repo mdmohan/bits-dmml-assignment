@@ -7,20 +7,13 @@ simulator:
   # Path to Olist CSV files (relative to producer/ or absolute)
   data_dir: "../data"
 
-  # Mean events per second at normal (midday) load.
-  # Actual rate varies by time-of-day and burst/slow patterns.
-  base_rate_per_sec: 2.0
-
-  # Probability of entering burst mode on any given event (0.0 – 1.0)
-  # Burst: sends burst_size events in rapid succession (10–80 ms apart)
-  burst_prob: 0.05
-  burst_size: 15
-
-  # Probability of entering a slow spell (adds 1–4 s extra delay)
-  slow_prob: 0.03
+  # Replay speed multiplier.
+  # scale=1    → real-time (original timestamp gaps)
+  # scale=60   → 60x faster (1 hour of data in 1 minute)
+  # scale=3600 → 3600x faster (1 hour of data in 1 second)
+  scale: 3600
 
   # If true, replay restarts from the beginning after all events are sent.
-  # Set to false to run exactly once (useful for testing).
   loop: true
 
   # Log a progress line every N published events
