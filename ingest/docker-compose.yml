@@ -172,22 +172,22 @@ volumes:
     driver_opts:
       type: none
       o: bind
-      device: /mnt/data/volumes/zookeeper-data
+      device: /nobackup/anujsri/data/volumes/zookeeper-data
   zookeeper-log:
     driver: local
     driver_opts:
       type: none
       o: bind
-      device: /mnt/data/volumes/zookeeper-log
+      device: /nobackup/anujsri/data/volumes/zookeeper-log
   kafka-data:
     driver: local
     driver_opts:
       type: none
       o: bind
-      device: /mnt/data/volumes/kafka-data
+      device: /nobackup/anujsri/data/volumes/kafka-data
   minio-data:
     driver: local
     driver_opts:
       type: none
       o: bind
-      device: /mnt/data/volumes/minio-data
+      device: /nobackup/anujsri/data/volumes/minio-data

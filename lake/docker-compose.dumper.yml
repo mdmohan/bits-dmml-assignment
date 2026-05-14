@@ -1,0 +1,22 @@
+version: "3.8"
+
+# Run the Kafka → MinIO dumper as a containerized service on the existing
+# olist-net network (created by ingest/docker-compose.yml).
+
+services:
+  raw-dumper:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: olist-raw-dumper:latest
+    container_name: raw-dumper
+    restart: unless-stopped
+    networks:
+      - olist-net
+    # Override config path if needed:
+    # command: ["--config", "/app/config.docker.yaml"]
+
+networks:
+  olist-net:
+    external: true
+    name: ingest_olist-net

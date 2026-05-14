@@ -1,0 +1,30 @@
+kafka:
+  # Use localhost:9094 when running the dumper directly on the VM host.
+  # Use kafka:9092 from inside a container on olist-net.
+  bootstrap_servers: "136.113.146.221:9092"
+  group_id: "raw-dumper-group"
+  auto_offset_reset: "earliest"
+  # Manual commits only — we commit after a successful MinIO upload.
+  enable_auto_commit: false
+  topics:
+    - olist.order_events
+    - olist.payment_events
+    - olist.delivery_events
+    - olist.review_events
+    - olist.inventory_events
+
+minio:
+  # S3 API endpoint. Host: http://localhost:9001  |  Docker: http://minio:9000
+  endpoint_url: "http://136.113.146.221:9001"
+  access_key: "minioadmin"
+  secret_key: "minioadmin123"
+  region: "us-east-1"
+  raw_bucket: "datalake"
+  dead_letter_bucket: "datalake-dead-letter"
+
+dumper:
+  # Flush a batch when either threshold is reached.
+  batch_size: 500
+  flush_interval_sec: 30
+  contract_version: "1.0"
+  log_every_n_batches: 5
