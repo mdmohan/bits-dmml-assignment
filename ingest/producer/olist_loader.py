@@ -195,6 +195,31 @@ def build_event_timeline(dfs: Dict[str, pd.DataFrame]) -> pd.DataFrame:
             },
         })
 
+    # ── inventory_item_added ──────────────────────────────────────────────────
+    # Each row in order_items represents an item being committed to an order.
+    # Use shipping_limit_date as the event timestamp (closest proxy available).
+    items["shipping_limit_date"] = pd.to_datetime(items["shipping_limit_date"], errors="coerce")
+    inv = items.merge(
+        orders[["order_id", "customer_id", "seller_id"]],
+        on="order_id", how="left",
+    )
+    for _, row in inv[inv["shipping_limit_date"].notna()].iterrows():
+        events.append({
+            "event_ts":    row["shipping_limit_date"],
+            "event_type":  "inventory_item_added",
+            "topic":       "olist.inventory_events",
+            "order_id":    row["order_id"],
+            "customer_id": row.get("customer_id"),
+            "seller_id":   str(row["seller_id"]) if pd.notna(row.get("seller_id")) else None,
+            "payload": {
+                "order_item_id":      int(row.get("order_item_id", 1)),
+                "product_id":         str(row.get("product_id", "")),
+                "price":              float(row.get("price", 0.0)),
+                "freight_value":      float(row.get("freight_value", 0.0)),
+                "shipping_limit_ts":  str(row["shipping_limit_date"]),
+            },
+        })
+
     df = pd.DataFrame(events).sort_values("event_ts").reset_index(drop=True)
     logger.info(
         "Event timeline built: %d events across topics: %s",
