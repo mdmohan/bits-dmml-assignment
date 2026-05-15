@@ -1,9 +1,10 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
+import os
 
 from pyspark.sql import DataFrame, SparkSession
-from pyspark.sql.functions import col, input_file_name
+from pyspark.sql.functions import col, input_file_name, coalesce, to_timestamp, current_timestamp, expr
 
 from spark.jdbc import DbWriter
 from spark.metadata import (
@@ -75,8 +76,16 @@ class BaseEventProcessor(ABC):
         last_ts, seen_keys = get_topic_watermark(self.spark, self.db_writer, self.topic_key)
 
         raw_df = self.read_raw().withColumn("_source_file", input_file_name())
-        if last_ts is not None:
-            raw_df = raw_df.where(col("event_ts") > last_ts)
+        window_minutes = int(os.getenv("WINDOW_MINUTES", "20"))
+        raw_df = raw_df.withColumn(
+            "_ingest_ts",
+            coalesce(
+                to_timestamp(col("_kafka_ingest_ts")),
+                to_timestamp(col("_raw_file_ts")),
+                to_timestamp(col("ingestion_hint_ts")),
+            ),
+        ).where(col("_ingest_ts").isNotNull())
+        raw_df = raw_df.where(col("_ingest_ts") >= (current_timestamp() - expr(f"INTERVAL {window_minutes} MINUTES")))
 
         if seen_keys:
             raw_df = raw_df.where(~col("_source_file").isin(list(seen_keys)))
