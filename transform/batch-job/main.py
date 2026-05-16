@@ -25,7 +25,6 @@ def main() -> None:
         minio_secure=minio_secure,
     )
     spark.sparkContext.setLogLevel("ERROR")
-    spark.conf.set("spark.ui.showConsoleProgress", "false")
     log4j = spark._jvm.org.apache.log4j
     log4j.LogManager.getLogger("org").setLevel(log4j.Level.ERROR)
     log4j.LogManager.getLogger("akka").setLevel(log4j.Level.ERROR)
