@@ -1,9 +1,11 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-CONTAINER_NAME="${CONTAINER_NAME:-olist-postgres}"
-DB_USER="${DB_USER:-postgres}"
-DB_NAME="${DB_NAME:-postgres}"
+PGHOST="${PGHOST:-postgres}"
+PGPORT="${PGPORT:-5432}"
+PGUSER="${PGUSER:-postgres}"
+PGDATABASE="${PGDATABASE:-postgres}"
+INCLUDE_DEV_SQL="${INCLUDE_DEV_SQL:-0}"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
@@ -17,7 +19,7 @@ SQL_FILES=(
   "007_seed_optional_dims.sql"
 )
 
-echo "Using container=$CONTAINER_NAME db=$DB_NAME user=$DB_USER"
+echo "Using host=$PGHOST port=$PGPORT db=$PGDATABASE user=$PGUSER"
 
 for f in "${SQL_FILES[@]}"; do
   path="$SCRIPT_DIR/$f"
@@ -27,11 +29,21 @@ for f in "${SQL_FILES[@]}"; do
   fi
 
   echo "Applying $f ..."
-  docker exec -i "$CONTAINER_NAME" psql -v ON_ERROR_STOP=1 -U "$DB_USER" -d "$DB_NAME" < "$path"
+  psql -v ON_ERROR_STOP=1 -h "$PGHOST" -p "$PGPORT" -U "$PGUSER" -d "$PGDATABASE" -f "$path"
   echo "Applied $f"
   echo "-----------------------------"
 done
 
+if [[ "$INCLUDE_DEV_SQL" == "1" ]]; then
+  dev_path="$SCRIPT_DIR/008_dev_relax_fact_order_events_fk.sql"
+  if [[ -f "$dev_path" ]]; then
+    echo "Applying 008_dev_relax_fact_order_events_fk.sql ..."
+    psql -v ON_ERROR_STOP=1 -h "$PGHOST" -p "$PGPORT" -U "$PGUSER" -d "$PGDATABASE" -f "$dev_path"
+    echo "Applied 008_dev_relax_fact_order_events_fk.sql"
+    echo "-----------------------------"
+  fi
+fi
+
 echo "Bootstrap complete."
 echo "Verifying mart tables..."
-docker exec -i "$CONTAINER_NAME" psql -U "$DB_USER" -d "$DB_NAME" -c "\\dt mart.*"
+psql -h "$PGHOST" -p "$PGPORT" -U "$PGUSER" -d "$PGDATABASE" -c "\\dt mart.*"

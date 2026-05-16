@@ -1,8 +1,11 @@
 from datetime import datetime, timedelta
 import os
+import json
 
 from airflow import DAG
+from airflow.operators.bash import BashOperator
 from airflow.operators.empty import EmptyOperator
+from airflow.operators.python import PythonOperator
 from airflow.providers.docker.operators.docker import DockerOperator
 
 
@@ -23,7 +26,46 @@ with DAG(
     max_active_runs=1,
     tags=["dmml", "spark", "batch"],
 ) as dag:
+    def summarize_spark_metrics(ti, **_kwargs):
+        raw = ti.xcom_pull(task_ids="run_spark_batch")
+        if not raw:
+            print("No XCom output from run_spark_batch.")
+            return
+
+        metrics_line = None
+        for line in str(raw).splitlines():
+            if line.startswith("METRICS_JSON="):
+                metrics_line = line.split("=", 1)[1].strip()
+                break
+
+        if not metrics_line:
+            print("Spark metrics marker not found in task output.")
+            return
+
+        metrics = json.loads(metrics_line)
+        print("=== Spark Metrics Summary ===")
+        for k in sorted(metrics.keys()):
+            print(f"{k}={metrics[k]}")
+
     start = EmptyOperator(task_id="start")
+
+    run_warehouse_bootstrap = DockerOperator(
+        task_id="run_warehouse_bootstrap",
+        image="olist-warehouse-bootstrap:latest",
+        api_version="auto",
+        auto_remove=True,
+        docker_url="unix://var/run/docker.sock",
+        network_mode="ingest_olist-net",
+        mount_tmp_dir=False,
+        environment={
+            "PGHOST": os.getenv("PGHOST", "postgres"),
+            "PGPORT": os.getenv("PGPORT", "5432"),
+            "PGUSER": os.getenv("PG_USER", "postgres"),
+            "PGPASSWORD": os.getenv("PG_PASSWORD", "postgres"),
+            "PGDATABASE": os.getenv("PGDATABASE", "postgres"),
+            "INCLUDE_DEV_SQL": os.getenv("INCLUDE_DEV_SQL", "1"),
+        },
+    )
 
     run_spark_batch = DockerOperator(
         task_id="run_spark_batch",
@@ -47,9 +89,38 @@ with DAG(
                 "ENABLED_PROCESSORS", "order_events,payment_events,delivery_events,review_events"
             ),
             "WINDOW_MINUTES": os.getenv("WINDOW_MINUTES", "30"),
+            "BOOTSTRAP_TARGET_RUNS": os.getenv("BOOTSTRAP_TARGET_RUNS", "5"),
+            "BOOTSTRAP_MIN_BATCH": os.getenv("BOOTSTRAP_MIN_BATCH", "10000"),
+            "BOOTSTRAP_MAX_BATCH": os.getenv("BOOTSTRAP_MAX_BATCH", "200000"),
+            "PYSPARK_SUBMIT_ARGS": "--conf spark.ui.showConsoleProgress=false pyspark-shell"
         },
+        do_xcom_push=True,
+    )
+
+    summarize_metrics = PythonOperator(
+        task_id="summarize_metrics",
+        python_callable=summarize_spark_metrics,
+    )
+
+    cleanup_airflow_logs = BashOperator(
+        task_id="cleanup_airflow_logs",
+        bash_command=(
+            "set -euo pipefail; "
+            "KEEP=${AIRFLOW_LOG_KEEP_RUNS:-10}; "
+            "BASE=/opt/airflow/logs; "
+            "for dag_dir in \"$BASE\"/dag_id=*; do "
+            "  [ -d \"$dag_dir\" ] || continue; "
+            "  mapfile -t run_dirs < <(find \"$dag_dir\" -maxdepth 1 -mindepth 1 -type d -name 'run_id=*' | sort); "
+            "  total=${#run_dirs[@]}; "
+            "  if [ \"$total\" -le \"$KEEP\" ]; then continue; fi; "
+            "  remove_count=$((total-KEEP)); "
+            "  for ((i=0; i<remove_count; i++)); do rm -rf \"${run_dirs[$i]}\"; done; "
+            "done; "
+            "find \"$BASE\" -type d -empty -delete || true"
+        ),
+        env={"AIRFLOW_LOG_KEEP_RUNS": os.getenv("AIRFLOW_LOG_KEEP_RUNS", "10")},
     )
 
     end = EmptyOperator(task_id="end")
 
-    start >> run_spark_batch >> end
+    start >> run_warehouse_bootstrap >> run_spark_batch >> summarize_metrics >> cleanup_airflow_logs >> end

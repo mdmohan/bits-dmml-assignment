@@ -1,4 +1,5 @@
 import os
+import json
 
 from processors.delivery_events import DeliveryEventsProcessor
 from processors.order_events import OrderEventsProcessor
@@ -23,6 +24,12 @@ def main() -> None:
         minio_secret_key=minio_secret_key,
         minio_secure=minio_secure,
     )
+    spark.sparkContext.setLogLevel("ERROR")
+    spark.conf.set("spark.ui.showConsoleProgress", "false")
+    log4j = spark._jvm.org.apache.log4j
+    log4j.LogManager.getLogger("org").setLevel(log4j.Level.ERROR)
+    log4j.LogManager.getLogger("akka").setLevel(log4j.Level.ERROR)
+
     cfg = load_topics_config(os.getenv("TOPICS_CONFIG"))
     cfg["minio"]["bucket"] = minio_bucket
 
@@ -72,6 +79,7 @@ def main() -> None:
     print(f"duplicates_skipped={run_summary['duplicates_skipped']}")
     print(f"processors_no_new_data={run_summary['no_new_data_processors']}")
     print("Batch job complete")
+    print(f"METRICS_JSON={json.dumps(run_summary, sort_keys=True)}")
 
 
 if __name__ == "__main__":
