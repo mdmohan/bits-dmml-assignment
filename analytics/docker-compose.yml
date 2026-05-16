@@ -1,0 +1,26 @@
+version: "3.9"
+
+services:
+  analytics-dashboard:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: olist-analytics-dashboard
+    ports:
+      - "8502:8502"
+    environment:
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_NAME=postgres
+      - DB_USER=postgres
+      - DB_PASSWORD=postgres
+    networks:
+      - ingest_olist-net
+    restart: unless-stopped
+
+networks:
+  ingest_olist-net:
+    external: true
+
+volumes:
+  pgdata:

@@ -1,0 +1,16 @@
+database:
+  host: "postgres"
+  port: 5432
+  dbname: "postgres"
+  user: "postgres"
+  password: "postgres"
+  schema: "mart"
+
+dashboard:
+  title: "Olist E-Commerce Analytics"
+  refresh_interval_sec: 60
+  # SLA thresholds
+  delivery_sla_hours: 48
+  review_response_sla_hours: 24
+  ingestion_lag_warn_sec: 120
+  ingestion_lag_critical_sec: 300
