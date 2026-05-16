@@ -7,9 +7,23 @@ simulator:
   # Relative to WORKDIR=/app/producer inside the container → resolves to /app/data
   data_dir: "../data"
 
-  base_rate_per_sec: 2.0
-  burst_prob: 0.05
-  burst_size: 15
-  slow_prob: 0.03
+  # Replay speed: 3600x → 1 hour of data replays in 1 second
+  scale: 3600
+
   loop: true
-  log_every_n: 200
+  log_every_n: 50
+
+minio:
+  # In-network MinIO endpoint (matches docker-compose.yml service name).
+  endpoint_url: "http://minio:9000"
+  access_key: "minioadmin"
+  secret_key: "minioadmin123"
+  region: "us-east-1"
+  reference_bucket: "datalake"
+  reference_prefix: "reference"
+
+sideloader:
+  data_dir: "../data"
+  faker_locale: "en_US"
+  faker_seed: 42
+  contract_version: "1.0"
