@@ -1,9 +1,10 @@
 from datetime import datetime, timedelta
 import os
 import json
+import shutil
+from pathlib import Path
 
 from airflow import DAG
-from airflow.operators.bash import BashOperator
 from airflow.operators.empty import EmptyOperator
 from airflow.operators.python import PythonOperator
 from airflow.providers.docker.operators.docker import DockerOperator
@@ -46,6 +47,32 @@ with DAG(
         print("=== Spark Metrics Summary ===")
         for k in sorted(metrics.keys()):
             print(f"{k}={metrics[k]}")
+
+    def cleanup_airflow_logs_fn(**_kwargs):
+        keep = int(os.getenv("AIRFLOW_LOG_KEEP_RUNS", "10"))
+        base = Path("/opt/airflow/logs")
+        if not base.exists():
+            print("cleanup_airflow_logs: log base path not found, skipping")
+            return
+
+        for dag_dir in sorted(base.glob("dag_id=*")):
+            if not dag_dir.is_dir():
+                continue
+            run_dirs = sorted([p for p in dag_dir.glob("run_id=*") if p.is_dir()])
+            if len(run_dirs) <= keep:
+                continue
+            to_remove = run_dirs[: len(run_dirs) - keep]
+            for p in to_remove:
+                shutil.rmtree(p, ignore_errors=True)
+                print(f"cleanup_airflow_logs: removed {p}")
+
+        # prune empty directories after run cleanup
+        for p in sorted(base.rglob("*"), reverse=True):
+            if p.is_dir():
+                try:
+                    p.rmdir()
+                except OSError:
+                    pass
 
     start = EmptyOperator(task_id="start")
 
@@ -102,23 +129,9 @@ with DAG(
         python_callable=summarize_spark_metrics,
     )
 
-    cleanup_airflow_logs = BashOperator(
+    cleanup_airflow_logs = PythonOperator(
         task_id="cleanup_airflow_logs",
-        bash_command=(
-            "set -euo pipefail; "
-            "KEEP=${AIRFLOW_LOG_KEEP_RUNS:-10}; "
-            "BASE=/opt/airflow/logs; "
-            "for dag_dir in \"$BASE\"/dag_id=*; do "
-            "  [ -d \"$dag_dir\" ] || continue; "
-            "  mapfile -t run_dirs < <(find \"$dag_dir\" -maxdepth 1 -mindepth 1 -type d -name 'run_id=*' | sort); "
-            "  total=${#run_dirs[@]}; "
-            "  if [ \"$total\" -le \"$KEEP\" ]; then continue; fi; "
-            "  remove_count=$((total-KEEP)); "
-            "  for ((i=0; i<remove_count; i++)); do rm -rf \"${run_dirs[$i]}\"; done; "
-            "done; "
-            "find \"$BASE\" -type d -empty -delete || true"
-        ),
-        env={"AIRFLOW_LOG_KEEP_RUNS": os.getenv("AIRFLOW_LOG_KEEP_RUNS", "10")},
+        python_callable=cleanup_airflow_logs_fn,
     )
 
     end = EmptyOperator(task_id="end")

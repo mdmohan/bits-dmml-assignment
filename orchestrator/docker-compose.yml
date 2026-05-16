@@ -16,6 +16,8 @@ x-airflow-common: &airflow-common
     - ./requirements.txt:/opt/airflow/requirements.txt
     - /var/run/docker.sock:/var/run/docker.sock
   user: "${AIRFLOW_UID}:0"
+  group_add:
+    - "${DOCKER_GID}"
   networks:
     - orchestrator-net
     - ingest-net
