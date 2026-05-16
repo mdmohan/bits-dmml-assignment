@@ -2,6 +2,7 @@ import os
 import json
 
 from processors.delivery_events import DeliveryEventsProcessor
+from processors.inventory_events import InventoryEventsProcessor
 from processors.order_events import OrderEventsProcessor
 from processors.payment_events import PaymentEventsProcessor
 from processors.review_events import ReviewEventsProcessor
@@ -43,6 +44,7 @@ def main() -> None:
         PaymentEventsProcessor(spark, db_writer, minio_topic_path(cfg, "payment_events")),
         DeliveryEventsProcessor(spark, db_writer, minio_topic_path(cfg, "delivery_events")),
         ReviewEventsProcessor(spark, db_writer, minio_topic_path(cfg, "review_events")),
+        InventoryEventsProcessor(spark, db_writer, minio_topic_path(cfg, "inventory_events")),
     ]
 
     enabled = set(filter(None, os.getenv("ENABLED_PROCESSORS", "order_events").split(",")))

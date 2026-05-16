@@ -44,6 +44,8 @@ class BaseEventProcessor(ABC):
             "mart.fact_payments": ["event_id"],
             "mart.fact_delivery_events": ["event_id"],
             "mart.fact_reviews": ["event_id"],
+            "mart.dim_product": ["product_id"],
+            "mart.fact_order_items": ["order_id", "order_item_id"],
         }
 
     def _idempotent_new_rows(self, table: str, df: DataFrame) -> DataFrame:
