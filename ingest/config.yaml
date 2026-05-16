@@ -18,3 +18,19 @@ simulator:
 
   # Log a progress line every N published events
   log_every_n: 200
+
+minio:
+  # S3 API endpoint. Host: http://localhost:9001  |  Docker: http://minio:9000
+  endpoint_url: "http://localhost:9001"
+  access_key: "minioadmin"
+  secret_key: "minioadmin123"
+  region: "us-east-1"
+  reference_bucket: "datalake"
+  reference_prefix: "reference"
+
+sideloader:
+  # Path to Olist CSV files (relative to producer/ or absolute)
+  data_dir: "../data"
+  faker_locale: "en_US"
+  faker_seed: 42
+  contract_version: "1.0"

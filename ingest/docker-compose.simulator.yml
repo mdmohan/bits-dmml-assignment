@@ -38,6 +38,20 @@ services:
     networks:
       - olist-net
 
+  # ── One-shot: side-load customer_details / product_details to MinIO ───────
+  # Usage:
+  #   docker compose -f docker-compose.simulator.yml run --rm dim-sideloader
+  #   docker compose -f docker-compose.simulator.yml run --rm dim-sideloader --dry-run
+  #   docker compose -f docker-compose.simulator.yml run --rm dim-sideloader --only products
+  dim-sideloader:
+    build:
+      context: .
+      dockerfile: Dockerfile.sideloader
+    container_name: olist-dim-sideloader
+    restart: "no"
+    networks:
+      - olist-net
+
 networks:
   olist-net:
     driver: bridge

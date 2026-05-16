@@ -156,8 +156,9 @@ ingest/
 ├── config.yaml                  # Local dev config
 ├── config.docker.yaml           # Docker config
 ├── docker-compose.yml           # Infra stack (Kafka, Kafdrop, MinIO)
-├── docker-compose.simulator.yml # Simulator container
+├── docker-compose.simulator.yml # Simulator + dim-sideloader containers
 ├── Dockerfile                   # Simulator image
+├── Dockerfile.sideloader        # Dim sideloader image
 ├── requirements.txt             # Python deps
 ├── data/                        # Olist CSV files (not committed)
 │   └── *.csv
@@ -165,5 +166,67 @@ ingest/
     ├── simulator.py             # Main entry point – timestamp-driven replay
     ├── olist_loader.py          # Loads CSVs, builds sorted event timeline
     ├── event_builder.py         # Maps timeline rows to Kafka message envelopes
-    └── kafka_producer.py        # Thin confluent-kafka wrapper
+    ├── kafka_producer.py        # Thin confluent-kafka wrapper
+    └── dim_sideloader.py        # One-shot reference-data loader → MinIO
+```
+
+## Reference Data Sideloader (customer_details / product_details)
+
+Customer and product master data are **not** events. They are pushed
+directly to MinIO as static reference datasets — per
+`data-contracts/ingested-data.md` §13. Run once for the demo; the
+script is idempotent and deterministic.
+
+Output (in the existing `datalake` bucket):
+
+```
+s3://datalake/reference/customer_details/dt=YYYY-MM-DD/customer_details.{parquet,jsonl}
+s3://datalake/reference/customer_details/_latest/customer_details.{parquet,jsonl}
+s3://datalake/reference/product_details/dt=YYYY-MM-DD/product_details.{parquet,jsonl}
+s3://datalake/reference/product_details/_latest/product_details.{parquet,jsonl}
+```
+
+### Run locally (against MinIO on the host)
+
+```bash
+cd ingest
+pip install -r requirements.txt
+cd producer
+python dim_sideloader.py --config ../config.yaml                 # write both
+python dim_sideloader.py --config ../config.yaml --dry-run       # print samples
+python dim_sideloader.py --config ../config.yaml --only products # one dataset
+```
+
+### Run via Docker (one-shot)
+
+Make sure the infra stack (which contains MinIO) is up first:
+
+```bash
+cd ingest
+docker compose up -d
+```
+
+Then run the sideloader as a one-shot container:
+
+```bash
+docker compose -f docker-compose.simulator.yml run --rm dim-sideloader
+# variants:
+docker compose -f docker-compose.simulator.yml run --rm dim-sideloader --dry-run
+docker compose -f docker-compose.simulator.yml run --rm dim-sideloader --only customers
+```
+
+Rebuild after code changes:
+
+```bash
+docker compose -f docker-compose.simulator.yml build dim-sideloader
+```
+
+### Verify the upload
+
+```bash
+# Via the MinIO console:  http://localhost:9002  (minioadmin / minioadmin123)
+# Or via mc:
+mc alias set local http://localhost:9001 minioadmin minioadmin123
+mc ls --recursive local/datalake/reference/
+mc cat local/datalake/reference/customer_details/_latest/customer_details.jsonl | head -3
 ```

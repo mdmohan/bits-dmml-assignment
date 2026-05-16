@@ -202,3 +202,89 @@ Include `error_reason` and original payload in dead-letter record.
 - ELT contract consumer: Person 3
 - Analytics consumer: Person 4
 
+## 13. Reference / Side-loaded Datasets
+
+### 13.1 Purpose
+Slowly-changing dimension data that downstream analytics (Spark ELT, warehouse dims) needs in order to enrich event streams with descriptive attributes. These datasets are **not events** and **not delivered via Kafka**. They are produced by the ingest module and pushed directly to MinIO.
+
+### 13.2 Transport
+- **Bus:** none (direct S3/MinIO PUT)
+- **Producer:** ingest (`ingest/producer/dim_sideloader.py`)
+- **Consumers:** Spark ELT (transform), warehouse dim loaders
+- **Refresh cadence:** one-shot for the demo; script is idempotent and safe to re-run
+- **Envelope:** none — flat records, not wrapped in the §4 event envelope
+
+### 13.3 Datasets
+
+#### 13.3.1 `customer_details`
+| Field                | Type   | Source                                | Notes |
+|----------------------|--------|---------------------------------------|-------|
+| `customer_id`        | string | Olist `olist_customers_dataset.csv`   | authoritative join key for events |
+| `customer_unique_id` | string | Olist                                 | retained for repeat-customer analytics |
+| `state`              | string | **Faker** (`en_US`, state abbreviation) | synthesized; deterministic per `customer_unique_id` |
+| `city`               | string | **Faker** (`en_US`, `city()`)         | synthesized; deterministic per `customer_unique_id` |
+| `_generated_ts`      | string | producer wall clock (ISO-8601 UTC)    | provenance |
+| `_contract_version`  | string | `1.0`                                 | |
+
+Constraints:
+- `customer_id` unique, non-null.
+- Same `customer_unique_id` always maps to the same `state`/`city` (Faker seeded per unique id).
+- Olist's original Brazilian `customer_state` / `customer_city` columns are **dropped** — replaced, not augmented, to avoid two conflicting "state" columns downstream.
+
+#### 13.3.2 `product_details`
+| Field               | Type   | Source                                              | Notes |
+|---------------------|--------|-----------------------------------------------------|-------|
+| `product_id`        | string | Olist `olist_products_dataset.csv`                  | authoritative join key for `inventory_events` |
+| `product_category`  | string | `product_category_name_translation.csv` (English)   | left-joined on `product_category_name`; null-safe |
+| `brand`             | string | **Faker** (`company()`)                             | synthesized; deterministic per `product_id` |
+| `_generated_ts`     | string | producer wall clock (ISO-8601 UTC)                  | |
+| `_contract_version` | string | `1.0`                                               | |
+
+Constraints:
+- `product_id` unique, non-null.
+- `product_category` may be null (Olist has products without category).
+- Olist's physical attributes (`product_weight_g`, dimensions, etc.) are **not included** in v1.
+
+### 13.4 MinIO Layout
+```
+s3://datalake/reference/customer_details/dt=YYYY-MM-DD/customer_details.parquet
+s3://datalake/reference/customer_details/dt=YYYY-MM-DD/customer_details.jsonl
+s3://datalake/reference/customer_details/_latest/customer_details.parquet
+s3://datalake/reference/customer_details/_latest/customer_details.jsonl
+s3://datalake/reference/product_details/dt=YYYY-MM-DD/product_details.parquet
+s3://datalake/reference/product_details/dt=YYYY-MM-DD/product_details.jsonl
+s3://datalake/reference/product_details/_latest/product_details.parquet
+s3://datalake/reference/product_details/_latest/product_details.jsonl
+```
+
+- **Bucket:** reuses the existing `datalake` bucket; prefix `reference/` segregates it from `raw/` (events) and `raw_dead_letter/`.
+- **Formats:** Parquet is the canonical read format for Spark; JSON Lines is kept alongside for human inspection.
+- **`_latest/` pointer:** stable path consumers read by default; dated partitions are history snapshots.
+
+### 13.5 File Format Details
+- Parquet: snappy compression, single file per dataset.
+- JSON Lines: one record per line, UTF-8, no envelope wrapper.
+
+### 13.6 Determinism / Reproducibility
+- Global Faker seed: fixed constant (`42`) declared in the script.
+- Per-row seeding: `Faker.seed_instance(stable_hash(key))` where `key` is `customer_unique_id` or `product_id`, so a given id always produces the same fabricated attributes across re-runs.
+
+### 13.7 Error Handling
+- Missing source CSV → fail fast, no partial writes.
+- Translation join misses → emit row with `product_category = null` (logged, not dead-lettered).
+- No dead-letter path for reference data (single-shot batch; failure means re-run).
+
+### 13.8 Ownership
+| Concern                  | Owner   |
+|--------------------------|---------|
+| Schema + producer        | Person 1 (ingest) |
+| Spark read + join        | Person 3 (transform) |
+| Warehouse dim load       | Person 4 (warehouse) |
+| Path / bucket convention | Person 1 (ingest) |
+
+### 13.9 Out of Scope (v1)
+- Periodic sync / CDC of customer or product master.
+- A Kafka `reference.*` topic.
+- `customer_created` / `product_added` event modeling.
+- Enrichment of in-flight event payloads with denormalized fields (the join is performed downstream in Spark).
+

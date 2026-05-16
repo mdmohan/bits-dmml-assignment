@@ -1,0 +1,14 @@
+FROM python:3.11-slim
+
+WORKDIR /app
+COPY requirements.txt .
+RUN pip install --no-cache-dir --prefer-binary -r requirements.txt
+
+COPY producer/ ./producer/
+COPY data/     ./data/
+COPY config.docker.yaml ./config.docker.yaml
+
+WORKDIR /app/producer
+
+ENTRYPOINT ["python3", "dim_sideloader.py"]
+CMD ["--config", "/app/config.docker.yaml"]
