@@ -58,6 +58,8 @@ class InventoryEventsProcessor(BaseEventProcessor):
     def build_facts(self, raw_df: DataFrame) -> dict[str, DataFrame]:
         facts = self.transformer.build_facts(raw_df)
         foi = facts["mart.fact_order_items"]
+        self._debug(f"inventory_fact_initial_rows={foi.count()}")
+        self._debug(f"inventory_fact_null_seller_initial={foi.where(col('seller_id').isNull()).count()}")
         try:
             order_seller = (
                 self.db_writer.read_table(self.spark, "mart.fact_order_events")
@@ -66,15 +68,18 @@ class InventoryEventsProcessor(BaseEventProcessor):
                 .dropDuplicates(["order_id"])
                 .withColumnRenamed("seller_id", "seller_id_from_order")
             )
+            self._debug(f"order_seller_lookup_rows={order_seller.count()}")
             foi = (
                 foi.join(order_seller, on="order_id", how="left")
                 .withColumn("seller_id", coalesce(col("seller_id"), col("seller_id_from_order")))
                 .drop("seller_id_from_order")
                 .where(col("seller_id").isNotNull())
             )
+            self._debug(f"inventory_fact_after_backfill_rows={foi.count()}")
         except Exception as exc:
             print(f"[{self.topic_key}] seller_backfill skipped: {exc}")
             foi = foi.where(col("seller_id").isNotNull())
+        self._debug(f"inventory_fact_final_rows={foi.count()}")
 
         facts["mart.fact_order_items"] = foi
         return facts

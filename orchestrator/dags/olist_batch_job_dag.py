@@ -112,8 +112,7 @@ with DAG(
             "PG_JDBC_URL": os.getenv("PG_JDBC_URL", "jdbc:postgresql://postgres:5432/postgres"),
             "PG_USER": os.getenv("PG_USER", "postgres"),
             "PG_PASSWORD": os.getenv("PG_PASSWORD", "postgres"),
-            "ENABLED_PROCESSORS": os.getenv(
-                "ENABLED_PROCESSORS", "order_events,payment_events,delivery_events,review_events,inventory_events"
+            "ENABLED_PROCESSORS": "order_events,payment_events,delivery_events,review_events,inventory_events"
             ),
             "WINDOW_MINUTES": os.getenv("WINDOW_MINUTES", "30"),
             "BOOTSTRAP_TARGET_RUNS": os.getenv("BOOTSTRAP_TARGET_RUNS", "5"),

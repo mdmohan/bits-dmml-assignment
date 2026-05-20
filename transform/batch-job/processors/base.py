@@ -23,6 +23,11 @@ class BaseEventProcessor(ABC):
         self.spark = spark
         self.db_writer = db_writer
         self.source_path = source_path
+        self.debug_logs = os.getenv("DEBUG_LOGS", "false").lower() in {"1", "true", "yes", "on"}
+
+    def _debug(self, msg: str) -> None:
+        if self.debug_logs:
+            print(f"[{self.topic_key}][DEBUG] {msg}")
 
     @abstractmethod
     def read_raw(self) -> DataFrame:
@@ -104,9 +109,14 @@ class BaseEventProcessor(ABC):
         raw_df = (
             self.read_raw()
             .withColumn("_source_file", input_file_name())
-            .withColumn("_path_dt", to_date(regexp_extract(col("_source_file"), r"/dt=(\\d{4}-\\d{2}-\\d{2})/", 1)))
-            .withColumn("_path_hour", regexp_extract(col("_source_file"), r"/(?:hour|hr)=(\\d{1,2})/", 1).cast("int"))
+            .withColumn("_path_dt", to_date(regexp_extract(col("_source_file"), r"/dt=(\d{4}-\d{2}-\d{2})/", 1)))
+            .withColumn("_path_hour", regexp_extract(col("_source_file"), r"/(?:hour|hr)=(\d{1,2})/", 1).cast("int"))
         )
+        self._debug(f"path_glob={self.source_path}")
+        sample_paths = [r["_source_file"] for r in raw_df.select("_source_file").limit(5).collect()]
+        self._debug(f"sample_source_files={sample_paths}")
+        sample_partitions = [f"{r['_path_dt']}|{r['_path_hour']}" for r in raw_df.select("_path_dt", "_path_hour").limit(5).collect()]
+        self._debug(f"sample_extracted_partitions={sample_partitions}")
         window_minutes = int(os.getenv("WINDOW_MINUTES", "20"))
         bootstrap_target_runs = int(os.getenv("BOOTSTRAP_TARGET_RUNS", "5"))
         bootstrap_min_batch = int(os.getenv("BOOTSTRAP_MIN_BATCH", "10000"))
@@ -206,6 +216,8 @@ class BaseEventProcessor(ABC):
                 f"last_hour={max_hour} keys_for_partition={len(keys_for_max)}"
             )
             upsert_topic_checkpoint(self.db_writer, self.topic_key, max_dt, max_hour, keys_for_max)
+        else:
+            self._debug("checkpoint_update skipped because no max partition rows after dropna(_path_dt,_path_hour)")
 
         return {
             "raw_count": raw_count,
